@@ -16,6 +16,7 @@ const score = ref(0)
 const lastPoints = ref(null)
 const lastMultiplier = ref(null)
 const placedAt = ref(null)
+const conflictBoxes = ref(new Set())
 let pointsTimer = null
 
 function getMultiplier(seconds) {
@@ -69,7 +70,19 @@ function placeNumber(index) {
   if (locked.value[index] || currentNumber.value === null) return
   if (!isValidPlacement(index, currentNumber.value)) {
     gameOverText.value = GAME_OVER_TEXTS[Math.floor(Math.random() * GAME_OVER_TEXTS.length)]
-    gameOver.value = true
+    const num = currentNumber.value
+    const lockedVals = boxes.value.map((v, i) => locked.value[i] ? { v, i } : null).filter(Boolean)
+    const leftBlock = lockedVals.filter(x => x.v > num && x.i < index).sort((a, b) => b.i - a.i)[0]
+    const rightBlock = lockedVals.filter(x => x.v < num && x.i > index).sort((a, b) => a.i - b.i)[0]
+    const tight = new Set()
+    if (leftBlock) tight.add(leftBlock.i)
+    if (rightBlock) tight.add(rightBlock.i)
+    tight.add(index)
+    conflictBoxes.value = tight
+    setTimeout(() => {
+      conflictBoxes.value = new Set()
+      gameOver.value = true
+    }, 820)
     return
   }
 
@@ -102,7 +115,31 @@ function checkGameOver() {
 
   if (!hasValidBox) {
     gameOverText.value = GAME_OVER_TEXTS[Math.floor(Math.random() * GAME_OVER_TEXTS.length)]
-    gameOver.value = true
+
+    // Find the locked boxes blocking this number
+    const conflicts = new Set()
+    boxes.value.forEach((v, i) => {
+      if (!locked.value[i]) return
+      if (v > num) {
+        // This locked box is too small an index for a larger value — find the rightmost locked box with v > num that has no valid unlocked slot to its left
+        conflicts.add(i)
+      } else if (v < num) {
+        conflicts.add(i)
+      }
+    })
+    // Narrow down: only the tightest pair — largest locked value < num and smallest locked value > num
+    const lockedVals = boxes.value.map((v, i) => locked.value[i] ? { v, i } : null).filter(Boolean)
+    const leftBlock = lockedVals.filter(x => x.v < num).sort((a, b) => b.v - a.v)[0]
+    const rightBlock = lockedVals.filter(x => x.v > num).sort((a, b) => a.v - b.v)[0]
+    const tight = new Set()
+    if (leftBlock) tight.add(leftBlock.i)
+    if (rightBlock) tight.add(rightBlock.i)
+    conflictBoxes.value = tight
+
+    setTimeout(() => {
+      conflictBoxes.value = new Set()
+      gameOver.value = true
+    }, 820)
   }
 }
 
@@ -118,6 +155,7 @@ function newGame() {
   lastPoints.value = null
   lastMultiplier.value = null
   placedAt.value = null
+  conflictBoxes.value = new Set()
 }
 </script>
 
@@ -155,7 +193,7 @@ function newGame() {
         <span class="box-label">{{ i + 1 }}</span>
         <button
           class="box"
-          :class="{ locked: locked[i], active: !locked[i] && currentNumber !== null }"
+          :class="{ locked: locked[i], active: !locked[i] && currentNumber !== null, conflict: conflictBoxes.has(i) }"
           :disabled="locked[i] || currentNumber === null"
           @click="placeNumber(i)"
         >
@@ -320,7 +358,7 @@ h1 {
 .info-list strong { color: #f1f5f9; }
 
 .current-number {
-  font-size: 1.875rem;
+  font-size: 1rem;
   min-height: 2rem;
 }
 
@@ -329,7 +367,7 @@ h1 {
   font-size: 2.25rem;
 }
 
-.hint { color: #94a3b8; }
+.hint { color: #94a3b8; font-size: 1rem; }
 
 .btn-generate {
   background: #38bdf8;
@@ -372,10 +410,13 @@ h1 {
   border: 2px solid #334155;
   border-radius: 8px;
   color: #f1f5f9;
-  font-size: 1.5rem;
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .box.active {
@@ -391,6 +432,22 @@ h1 {
   border-color: #475569;
   color: #facc15;
   cursor: not-allowed;
+}
+
+.box.conflict {
+  border-color: #ef4444;
+  color: #ef4444;
+  animation: shake 0.6s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15%       { transform: translateX(-6px); }
+  30%       { transform: translateX(6px); }
+  45%       { transform: translateX(-5px); }
+  60%       { transform: translateX(5px); }
+  75%       { transform: translateX(-3px); }
+  90%       { transform: translateX(3px); }
 }
 
 .modal-overlay {
@@ -419,14 +476,14 @@ h1 {
 @media (max-width: 480px) {
   h1 { font-size: 1.75rem; }
 
-  .current-number { font-size: 1.125rem; }
+  .current-number { font-size: 0.875rem; }
   .current-number strong { font-size: 1.375rem; }
 
   .container { padding: 2rem 1rem; gap: 1.25rem; }
 
   .boxes { grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
 
-  .box { font-size: 1rem; }
+  .box { font-size: 0.8rem; }
 
   .btn-generate { padding: 0.65rem 1.75rem; font-size: 1rem; }
 }
