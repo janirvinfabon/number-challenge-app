@@ -1,0 +1,21 @@
+{
+  "name": "number-challenge-app",
+  "type": "module",
+  "private": true,
+  "scripts": {
+   "build": "source ~/.nvm/nvm.sh && nvm use 20 && nuxt build",
+    "dev": "source ~/.nvm/nvm.sh && nvm use 20 && nuxt typecheck && nuxt dev",
+    "generate": "source ~/.nvm/nvm.sh && nvm use 20 && nuxt generate",
+    "preview": "source ~/.nvm/nvm.sh && nvm use 20 && nuxt preview",
+    "copy": "aws s3 sync ./.output/public s3://$S3_BUCKET --profile $AWS_PROFILE",
+    "invalidate": "aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_ID --paths '/*' --profile $AWS_PROFILE",
+    "distribution": "aws cloudfront get-distribution --id $CLOUDFRONT_ID --profile $AWS_PROFILE --query 'Distribution.DistributionConfig.Aliases.Items' --output text",
+    "deploy": "export $(grep -v '^#' .env | xargs) && npm run build && npm run generate && npm run copy && npm run invalidate && npm run distribution",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "nuxt": "^4.4.2",
+    "vue": "^3.5.32",
+    "vue-router": "^5.0.4"
+  }
+}
