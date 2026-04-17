@@ -1,0 +1,124 @@
+service: number-challenge-backend
+
+frameworkVersion: '3'
+
+plugins:
+  - serverless-prune-plugin
+
+custom:
+  prune:
+    automatic: true
+    includeLayers: true
+    number: 3
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${opt:region, 'ap-southeast-1'}
+  profile: ${opt:awsProfile, 'default'}
+  deploymentBucket:
+    name: ${self:service}-serverless-${opt:stage, 'dev'}-deployments
+  environment:
+    TABLE_NAME: !Ref LeaderboardTable
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:Query
+          Resource:
+            - !GetAtt LeaderboardTable.Arn
+            - !Sub '${LeaderboardTable.Arn}/index/*'
+  apiGateway:
+    apiKeys:
+      - name: ${self:service}-${opt:stage, 'dev'}-key
+        description: API key for ${self:service} ${opt:stage, 'dev'}
+    usagePlan:
+      quota:
+        limit: 10000
+        period: MONTH
+      throttle:
+        burstLimit: 20
+        rateLimit: 10
+
+package:
+  individually: true
+  patterns:
+    - '!node_modules/**'
+    - '!layer/**'
+
+functions:
+  submitScore:
+    handler: src/handlers/scores.submit
+    layers:
+      - !Ref DepLayerLambdaLayer
+    events:
+      - http:
+          path: /scores
+          method: POST
+          private: true
+          cors:
+            origins:
+              - '*'
+            headers:
+              - Content-Type
+              - x-api-key
+            allowCredentials: false
+
+  getTopScores:
+    handler: src/handlers/scores.getTop
+    layers:
+      - !Ref DepLayerLambdaLayer
+    events:
+      - http:
+          path: /scores/top
+          method: GET
+          private: true
+          cors:
+            origins:
+              - '*'
+            headers:
+              - Content-Type
+              - x-api-key
+            allowCredentials: false
+
+layers:
+  depLayer:
+    path: layer
+    name: ${self:service}-dep-layer
+    description: Node.js dependencies for ${self:service}
+    compatibleRuntimes:
+      - nodejs20.x
+    retain: false
+
+resources:
+  Resources:
+    LeaderboardTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: number-challenge-leaderboard
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: playerName
+            AttributeType: S
+          - AttributeName: timestamp
+            AttributeType: S
+          - AttributeName: gameType
+            AttributeType: S
+          - AttributeName: score
+            AttributeType: N
+        KeySchema:
+          - AttributeName: playerName
+            KeyType: HASH
+          - AttributeName: timestamp
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: score-index
+            KeySchema:
+              - AttributeName: gameType
+                KeyType: HASH
+              - AttributeName: score
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL

@@ -1,0 +1,21 @@
+{
+  "name": "number-challenge-backend",
+  "version": "1.0.0",
+  "description": "Leaderboard backend for Number Challenge",
+  "main": "src/handlers/scores.js",
+  "scripts": {
+    "deploy": "serverless deploy --config serverless.yml --stage dev --region ap-southeast-1 --aws-profile $AWS_PROFILE --verbose && USAGE_PLAN_ID=$(aws apigateway get-usage-plans --region ap-southeast-1 --profile $AWS_PROFILE | jq -r '.items[] | select(.name | startswith(\"number-challenge-backend-dev\")) | .id') && API_KEY=$(aws apigateway get-usage-plan-keys --usage-plan-id $USAGE_PLAN_ID --region ap-southeast-1 --profile $AWS_PROFILE | jq -r '.items[0].value') && sed -i '' 's|export NUXT_PUBLIC_API_KEY=.*|export NUXT_PUBLIC_API_KEY='$API_KEY'|' ../.env && echo 'API key updated in .env'",
+    "deploy:prod": "serverless deploy --config serverless.yml --stage prod --aws-profile $AWS_PROFILE",
+    "remove": "serverless remove",
+    "logs:submit": "serverless logs -f submitScore --tail",
+    "logs:top": "serverless logs -f getTopScores --tail"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0"
+  },
+  "devDependencies": {
+    "serverless": "^3.0.0",
+    "serverless-prune-plugin": "^2.0.0"
+  }
+}
