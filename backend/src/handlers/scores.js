@@ -3,6 +3,8 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb')
 const { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand } = require('@aws-sdk/lib-dynamodb')
 
+const logger = require('../utils/logger')
+
 const client = DynamoDBDocumentClient.from(new DynamoDBClient())
 const TABLE = process.env.TABLE_NAME
 
@@ -21,6 +23,7 @@ const response = (statusCode, body) => ({
 })
 
 module.exports.submit = async (event) => {
+  logger.access(event)
   const { playerName, deviceId, score, stage } = JSON.parse(event.body || '{}')
 
   if (!playerName || !deviceId || typeof score !== 'number' || typeof stage !== 'number') {
@@ -39,7 +42,9 @@ module.exports.submit = async (event) => {
   }))
 
   if (existing.Item && score <= existing.Item.score) {
-    return response(200, { message: 'Score not improved' })
+    const result = { message: 'Score not improved' }
+    logger.apilog(result)
+    return response(200, result)
   }
 
   await client.send(new PutCommand({
@@ -54,10 +59,13 @@ module.exports.submit = async (event) => {
     },
   }))
 
-  return response(201, { message: 'Score submitted' })
+  const result = { message: 'Score submitted' }
+  logger.apilog(result)
+  return response(201, result)
 }
 
 module.exports.getTop = async (event) => {
+  logger.access(event)
   const limit = Math.min(parseInt(event.queryStringParameters?.limit || '10'), 50)
 
   const result = await client.send(new QueryCommand({
@@ -69,5 +77,6 @@ module.exports.getTop = async (event) => {
     Limit: limit,
   }))
 
+  logger.apilog(result)
   return response(200, result.Items)
 }

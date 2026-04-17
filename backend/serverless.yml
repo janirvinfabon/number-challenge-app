@@ -20,6 +20,7 @@ provider:
     name: ${self:service}-serverless-${opt:stage, 'dev'}-deployments
   environment:
     TABLE_NAME: !Ref LeaderboardTable
+  logRetentionInDays: 30
   iam:
     role:
       statements:
