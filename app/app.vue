@@ -1,6 +1,44 @@
 <script setup>
 const TOTAL_BOXES = 20
 
+const { version } = useAppConfig()
+const { showUpdateToast } = useVersionCheck()
+
+let toastTimer = null
+watch(showUpdateToast, (val) => {
+  if (val) {
+    toastTimer = setTimeout(() => { showUpdateToast.value = false }, 5000)
+  }
+})
+
+const { playerName, deviceId } = usePlayerName()
+const { submitScore, getTopScores } = useLeaderboard()
+
+const showNamePrompt = ref(false)
+
+onMounted(() => {
+  showNamePrompt.value = !playerName.value
+})
+const nameInput = ref('')
+const showLeaderboard = ref(false)
+const leaderboardData = ref([])
+const leaderboardLoading = ref(false)
+
+function saveName() {
+  const trimmed = nameInput.value.trim()
+  if (!trimmed) return
+  playerName.value = trimmed
+  nameInput.value = ''
+  showNamePrompt.value = false
+}
+
+async function openLeaderboard() {
+  showLeaderboard.value = true
+  leaderboardLoading.value = true
+  leaderboardData.value = await getTopScores(10)
+  leaderboardLoading.value = false
+}
+
 const boxes = ref(Array(TOTAL_BOXES).fill(null))
 const locked = ref(Array(TOTAL_BOXES).fill(false))
 const currentNumber = ref(null)
@@ -43,8 +81,8 @@ const GAME_OVER_TEXTS = [
   'Power was not on your side.',
 ]
 
-watch([showInfo, gameOver, gameWon], ([info, over, won]) => {
-  document.body.style.overflow = (info || over || won) ? 'hidden' : ''
+watch([showInfo, gameOver, gameWon, showNamePrompt, showLeaderboard], ([info, over, won, name, lb]) => {
+  document.body.style.overflow = (info || over || won || name || lb) ? 'hidden' : ''
 })
 
 function generateNumber() {
@@ -82,6 +120,7 @@ function placeNumber(index) {
     setTimeout(() => {
       conflictBoxes.value = new Set()
       gameOver.value = true
+      submitScore(playerName.value, deviceId.value, score.value, filledCount.value)
     }, 820)
     return
   }
@@ -102,6 +141,7 @@ function placeNumber(index) {
 
   if (locked.value.every(Boolean)) {
     gameWon.value = true
+    submitScore(playerName.value, deviceId.value, score.value, filledCount.value)
     return
   }
 
@@ -139,6 +179,7 @@ function checkGameOver() {
     setTimeout(() => {
       conflictBoxes.value = new Set()
       gameOver.value = true
+      submitScore(playerName.value, deviceId.value, score.value, filledCount.value)
     }, 820)
   }
 }
@@ -163,7 +204,12 @@ function newGame() {
   <div class="container">
     <div class="header">
       <h1>Number Challenge</h1>
-      <button class="btn-info" @click="showInfo = true">ℹ️</button>
+      <button class="btn-icon" @click="openLeaderboard" title="Leaderboard">🏆</button>
+      <button class="btn-icon" @click="showInfo = true" title="How to Play">ℹ️</button>
+    </div>
+
+    <div class="player-row">
+      <span class="player-name" @click="showNamePrompt = true" title="Change name">👤 {{ playerName }}</span>
     </div>
 
     <div class="meta-row">
@@ -202,6 +248,40 @@ function newGame() {
       </div>
     </div>
 
+    <!-- Name Prompt Modal -->
+    <div v-if="showNamePrompt" class="modal-overlay">
+      <div class="modal">
+        <h2>👤 Your Name</h2>
+        <p>Enter a name to track your score on the leaderboard.</p>
+        <input
+          v-model="nameInput"
+          class="name-input"
+          placeholder="Your name"
+          maxlength="20"
+          @keyup.enter="saveName"
+        />
+        <button class="btn-generate" :disabled="!nameInput.trim()" @click="saveName">Let's Go!</button>
+      </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div v-if="showLeaderboard" class="modal-overlay" @click.self="showLeaderboard = false">
+      <div class="modal modal--wide">
+        <h2>🏆 Leaderboard</h2>
+        <div v-if="leaderboardLoading" class="lb-loading">Loading...</div>
+        <ol v-else class="lb-list">
+          <li v-for="(entry, i) in leaderboardData" :key="i" class="lb-item">
+            <span class="lb-rank">#{{ i + 1 }}</span>
+            <span class="lb-player">{{ entry.playerName }}</span>
+            <span class="lb-score">{{ entry.score }}</span>
+            <span class="lb-stage">{{ entry.stage }}/{{ TOTAL_BOXES }}</span>
+          </li>
+          <li v-if="!leaderboardData.length" class="lb-empty">No scores yet. Be the first!</li>
+        </ol>
+        <button class="btn-generate" @click="showLeaderboard = false">Close</button>
+      </div>
+    </div>
+
     <!-- Info Modal -->
     <div v-if="showInfo" class="modal-overlay" @click.self="showInfo = false">
       <div class="modal">
@@ -221,6 +301,7 @@ function newGame() {
     <!-- Game Over Modal -->
     <div v-if="gameOver || gameWon" class="modal-overlay">
       <div class="modal">
+        <button class="btn-close" @click="gameOver = false; gameWon = false">✕</button>
         <h2>{{ gameWon ? '🎉 You Win!' : '💀 Game Over' }}</h2>
         <p v-if="gameWon">You placed all 20 numbers in order!</p>
         <p v-else>{{ gameOverText }} Better luck next time!</p>
@@ -228,6 +309,20 @@ function newGame() {
         <button class="btn-generate" @click="newGame">New Game</button>
       </div>
     </div>
+
+    <footer class="footer">v{{ version }}</footer>
+
+    <!-- Update Toast -->
+    <Transition name="toast">
+      <div v-if="showUpdateToast" class="toast" @click="showUpdateToast = false">
+        <span>🚀</span>
+        <div>
+          <strong>App updated to v{{ version }}</strong>
+          <p>We’re making improvements to enhance your experience.</p>
+        </div>
+        <button class="toast-close" @click.stop="showUpdateToast = false">✕</button>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -285,6 +380,86 @@ h1 {
 }
 
 .btn-info:hover { background: #1e3a5f; }
+
+.btn-icon {
+  background: none;
+  border: 2px solid #38bdf8;
+  border-radius: 50%;
+  width: 2.25rem;
+  height: 2.25rem;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-icon:hover { background: #1e3a5f; }
+
+.player-row {
+  display: flex;
+  justify-content: center;
+}
+
+.player-name {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  cursor: pointer;
+  border-bottom: 1px dashed #475569;
+  padding-bottom: 1px;
+  transition: color 0.2s;
+}
+
+.player-name:hover { color: #f1f5f9; }
+
+.name-input {
+  background: #0f172a;
+  border: 2px solid #334155;
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-family: 'Poppins', sans-serif;
+  font-size: 1rem;
+  padding: 0.6rem 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+
+.name-input:focus { border-color: #38bdf8; }
+
+.modal--wide { max-width: 520px; }
+
+.lb-loading { color: #94a3b8; }
+
+.lb-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.lb-item {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  background: #0f172a;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+}
+
+.lb-rank { color: #64748b; font-weight: 600; }
+.lb-player { color: #f1f5f9; text-align: left; }
+.lb-score { color: #38bdf8; font-weight: 700; }
+.lb-stage { color: #64748b; font-size: 0.75rem; }
+.lb-empty { color: #64748b; text-align: center; padding: 1rem 0; }
 
 .meta-row {
   display: flex;
@@ -471,6 +646,7 @@ h1 {
   min-width: 280px;
   width: 90%;
   max-width: 400px;
+  position: relative;
 }
 
 @media (max-width: 480px) {
@@ -490,4 +666,74 @@ h1 {
 
 .modal h2 { font-size: 2rem; }
 .modal p { color: #94a3b8; font-size: 1.125rem; }
+
+.footer {
+  font-size: 0.75rem;
+  color: #334155;
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.toast {
+  position: fixed;
+  top: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  border: 1px solid #38bdf8;
+  border-radius: 10px;
+  padding: 0.875rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 280px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  cursor: pointer;
+  z-index: 999;
+}
+
+.toast span { font-size: 1.5rem; flex-shrink: 0; }
+
+.toast div { flex: 1; text-align: left; }
+
+.toast strong { font-size: 0.875rem; color: #f1f5f9; display: block; }
+
+.toast p { font-size: 0.75rem; color: #94a3b8; margin-top: 0.15rem; }
+
+.toast-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 1rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.toast-close:hover { color: #f1f5f9; }
+
+.toast-enter-active { animation: slide-up 0.3s ease; }
+.toast-leave-active { animation: slide-up 0.3s ease reverse; }
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateX(-50%) translateY(-1rem); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.btn-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 1.25rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.btn-close:hover { color: #f1f5f9; }
 </style>

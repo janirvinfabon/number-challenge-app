@@ -116,6 +116,9 @@ dist
 
 # Serverless directories
 .serverless/
+backend/layer
+backend/.gitignore
+backend/.env.example
 
 # FuseBox cache
 .fusebox/
