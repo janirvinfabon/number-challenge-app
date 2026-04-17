@@ -1,7 +1,21 @@
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
+
+const { version } = JSON.parse(readFileSync(resolve('./package.json'), 'utf-8'))
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
+  appConfig: {
+    version
+  },
+  runtimeConfig: {
+    public: {
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || '',
+      apiKey: process.env.NUXT_PUBLIC_API_KEY || ''
+    }
+  },
   app: {
     head: {
       title: 'Number Challenge',
