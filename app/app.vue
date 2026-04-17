@@ -14,7 +14,11 @@ watch(showUpdateToast, (val) => {
 const { playerName, deviceId } = usePlayerName()
 const { submitScore, getTopScores } = useLeaderboard()
 
-const showNamePrompt = ref(!playerName.value)
+const showNamePrompt = ref(false)
+
+onMounted(() => {
+  showNamePrompt.value = !playerName.value
+})
 const nameInput = ref('')
 const showLeaderboard = ref(false)
 const leaderboardData = ref([])
