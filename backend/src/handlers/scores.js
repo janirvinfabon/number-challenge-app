@@ -1,7 +1,7 @@
 'use strict'
 
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb')
-const { DynamoDBDocumentClient, PutCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb')
+const { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand } = require('@aws-sdk/lib-dynamodb')
 
 const client = DynamoDBDocumentClient.from(new DynamoDBClient())
 const TABLE = process.env.TABLE_NAME
@@ -31,7 +31,16 @@ module.exports.submit = async (event) => {
   if (!sanitizedName) return response(400, { error: 'Invalid player name' })
 
   if (stage < 1 || stage > TOTAL_STAGES) return response(400, { error: 'Invalid stage' })
-  if (score < 0 || score > stage * MAX_SCORE_PER_STAGE) return response(400, { error: 'Invalid score' })
+  if (score < 0 || score > stage * MAX_SCORE_PER_STAGE) return response(400, { error: 'Invalid score' })  
+
+  const existing = await client.send(new GetCommand({
+    TableName: TABLE,
+    Key: { playerName: sanitizedName, deviceId },
+  }))
+
+  if (existing.Item && score <= existing.Item.score) {
+    return response(200, { message: 'Score not improved' })
+  }
 
   await client.send(new PutCommand({
     TableName: TABLE,

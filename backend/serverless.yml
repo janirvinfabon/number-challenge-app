@@ -27,6 +27,7 @@ provider:
           Action:
             - dynamodb:PutItem
             - dynamodb:Query
+            - dynamodb:GetItem
           Resource:
             - !GetAtt LeaderboardTable.Arn
             - !Sub '${LeaderboardTable.Arn}/index/*'
@@ -102,7 +103,7 @@ resources:
         AttributeDefinitions:
           - AttributeName: playerName
             AttributeType: S
-          - AttributeName: timestamp
+          - AttributeName: deviceId
             AttributeType: S
           - AttributeName: gameType
             AttributeType: S
@@ -111,7 +112,7 @@ resources:
         KeySchema:
           - AttributeName: playerName
             KeyType: HASH
-          - AttributeName: timestamp
+          - AttributeName: deviceId
             KeyType: RANGE
         GlobalSecondaryIndexes:
           - IndexName: score-index
