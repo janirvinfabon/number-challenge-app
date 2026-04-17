@@ -442,7 +442,14 @@ h1 {
   width: 100%;
   max-height: 320px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #38bdf8 #1e293b;
 }
+
+.lb-list::-webkit-scrollbar { width: 6px; }
+.lb-list::-webkit-scrollbar-track { background: #1e293b; border-radius: 4px; }
+.lb-list::-webkit-scrollbar-thumb { background: #38bdf8; border-radius: 4px; }
+.lb-list::-webkit-scrollbar-thumb:hover { background: #7dd3fc; }
 
 .lb-item {
   display: grid;
